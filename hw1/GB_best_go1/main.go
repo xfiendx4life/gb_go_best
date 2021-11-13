@@ -21,8 +21,8 @@ type CrawlResult struct {
 }
 
 type Page interface {
-	GetTitle() string
-	GetLinks() []string
+	GetTitle(context.Context) string
+	GetLinks(context.Context) []string
 }
 
 type page struct {
@@ -37,19 +37,30 @@ func NewPage(raw io.Reader) (Page, error) {
 	return &page{doc: doc}, nil
 }
 
-func (p *page) GetTitle() string {
-	return p.doc.Find("title").First().Text()
+func (p *page) GetTitle(ctx context.Context) string {
+	select {
+	case <-ctx.Done():
+		return ""
+	default:
+		time.Sleep(time.Second * 3)
+		return p.doc.Find("title").First().Text()
+	}
 }
 
-func (p *page) GetLinks() []string {
-	var urls []string
-	p.doc.Find("a").Each(func(_ int, s *goquery.Selection) {
-		url, ok := s.Attr("href")
-		if ok {
-			urls = append(urls, url)
-		}
-	})
-	return urls
+func (p *page) GetLinks(ctx context.Context) []string {
+	select {
+	case <-ctx.Done():
+		return nil
+	default:
+		var urls []string
+		p.doc.Find("a").Each(func(_ int, s *goquery.Selection) {
+			url, ok := s.Attr("href")
+			if ok {
+				urls = append(urls, url)
+			}
+		})
+		return urls
+	}
 }
 
 type Requester interface {
@@ -135,10 +146,10 @@ func (c *crawler) Scan(ctx context.Context, url string, depth int) {
 		c.visited[url] = struct{}{} //Помечаем страницу просмотренной
 		c.mu.Unlock()
 		c.res <- CrawlResult{ //Отправляем результаты в канал
-			Title: page.GetTitle(),
+			Title: page.GetTitle(ctx),
 			Url:   url,
 		}
-		for _, link := range page.GetLinks() {
+		for _, link := range page.GetLinks(ctx) {
 			go c.Scan(ctx, link, depth-1) //На все полученные ссылки запускаем новую рутину сборки
 		}
 	}
@@ -167,20 +178,21 @@ func main() {
 		Timeout:    10,
 	}
 	var cr Crawler
-	// var r Requester
 
 	r := NewRequester(time.Duration(cfg.Timeout) * time.Second)
 	cr = NewCrawler(r)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	go cr.Scan(ctx, cfg.Url, cfg.MaxDepth) //Запускаем краулер в отдельной рутине
-	go processResult(ctx, cancel, cr, cfg) //Обрабатываем результаты в отдельной рутине
+	ctx, _ := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(ctx, time.Second*2) // добавим таймаут в контекст
+	go cr.Scan(ctx, cfg.Url, cfg.MaxDepth)                 //Запускаем краулер в отдельной рутине
+	go processResult(ctx, cancel, cr, cfg)                 //Обрабатываем результаты в отдельной рутине
 
 	sigCh := make(chan os.Signal, 1)                      //Создаем канал для приема сигналов
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGUSR1) //Подписываемся на сигнал SIGINT
 	for {
 		select {
 		case <-ctx.Done(): //Если всё завершили - выходим
+			log.Print("ended with context")
 			return
 		case sign := <-sigCh:
 			switch sign {
