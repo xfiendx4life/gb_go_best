@@ -43,7 +43,6 @@ func (p *page) GetTitle(ctx context.Context) string {
 	case <-ctx.Done():
 		return ""
 	default:
-		// time.Sleep(time.Second * 3)
 		return p.doc.Find("title").First().Text()
 	}
 }
@@ -112,7 +111,7 @@ type Crawler interface {
 type crawler struct {
 	r         Requester
 	res       chan CrawlResult
-	chngDepth chan int
+	chngDepth chan int // для изменения глубины поиска
 	visited   map[string]struct{}
 	mu        sync.RWMutex
 }
@@ -121,7 +120,7 @@ func NewCrawler(r Requester) *crawler {
 	return &crawler{
 		r:         r,
 		res:       make(chan CrawlResult),
-		chngDepth: make(chan int),
+		chngDepth: make(chan int), // для изменения глубины поиска
 		visited:   make(map[string]struct{}),
 		mu:        sync.RWMutex{},
 	}
@@ -131,7 +130,6 @@ func (c *crawler) Scan(ctx context.Context, url string, depth int) {
 	if depth <= 0 { //Проверяем то, что есть запас по глубине
 		return
 	}
-	fmt.Println(depth)
 	c.mu.RLock()
 	_, ok := c.visited[url] //Проверяем, что мы ещё не смотрели эту страницу
 	c.mu.RUnlock()
@@ -142,8 +140,7 @@ func (c *crawler) Scan(ctx context.Context, url string, depth int) {
 	case <-ctx.Done(): //Если контекст завершен - прекращаем выполнение
 		return
 	case d := <-c.chngDepth:
-		depth += d
-		go c.Scan(ctx, url, depth)
+		go c.Scan(ctx, url, depth+d)
 		return
 	default:
 		page, err := c.r.Get(ctx, url) //Запрашиваем страницу через Requester
@@ -181,14 +178,13 @@ type Config struct {
 	Timeout    int //in seconds
 }
 
-func main() {
-
+func mainStarter() {
 	cfg := Config{
 		MaxDepth:   3,
 		MaxResults: 10,
-		MaxErrors:  5,
-		Url:        "https://sdo.1580.ru/",
-		Timeout:    10,
+		MaxErrors:  10,
+		Url:        "http://telegram.org",
+		Timeout:    3,
 	}
 	var cr Crawler
 
@@ -218,6 +214,10 @@ func main() {
 	}
 }
 
+func main() {
+	mainStarter()
+}
+
 func processResult(ctx context.Context, cancel func(), cr Crawler, cfg Config) {
 	var maxResult, maxErrors = cfg.MaxResults, cfg.MaxErrors
 	for {
@@ -228,6 +228,7 @@ func processResult(ctx context.Context, cancel func(), cr Crawler, cfg Config) {
 			if msg.Err != nil {
 				maxErrors--
 				log.Printf("crawler result return err: %s\n", msg.Err.Error())
+				syscall.Kill(os.Getpid(), syscall.SIGUSR1)
 				if maxErrors <= 0 {
 					cancel()
 					return
