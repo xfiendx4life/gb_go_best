@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -42,7 +43,7 @@ func (p *page) GetTitle(ctx context.Context) string {
 	case <-ctx.Done():
 		return ""
 	default:
-		time.Sleep(time.Second * 3)
+		// time.Sleep(time.Second * 3)
 		return p.doc.Find("title").First().Text()
 	}
 }
@@ -105,21 +106,24 @@ func (r requester) Get(ctx context.Context, url string) (Page, error) {
 type Crawler interface {
 	Scan(ctx context.Context, url string, depth int)
 	ChanResult() <-chan CrawlResult
+	ChangeDepth(int)
 }
 
 type crawler struct {
-	r       Requester
-	res     chan CrawlResult
-	visited map[string]struct{}
-	mu      sync.RWMutex
+	r         Requester
+	res       chan CrawlResult
+	chngDepth chan int
+	visited   map[string]struct{}
+	mu        sync.RWMutex
 }
 
 func NewCrawler(r Requester) *crawler {
 	return &crawler{
-		r:       r,
-		res:     make(chan CrawlResult),
-		visited: make(map[string]struct{}),
-		mu:      sync.RWMutex{},
+		r:         r,
+		res:       make(chan CrawlResult),
+		chngDepth: make(chan int),
+		visited:   make(map[string]struct{}),
+		mu:        sync.RWMutex{},
 	}
 }
 
@@ -127,6 +131,7 @@ func (c *crawler) Scan(ctx context.Context, url string, depth int) {
 	if depth <= 0 { //Проверяем то, что есть запас по глубине
 		return
 	}
+	fmt.Println(depth)
 	c.mu.RLock()
 	_, ok := c.visited[url] //Проверяем, что мы ещё не смотрели эту страницу
 	c.mu.RUnlock()
@@ -135,6 +140,10 @@ func (c *crawler) Scan(ctx context.Context, url string, depth int) {
 	}
 	select {
 	case <-ctx.Done(): //Если контекст завершен - прекращаем выполнение
+		return
+	case d := <-c.chngDepth:
+		depth += d
+		go c.Scan(ctx, url, depth)
 		return
 	default:
 		page, err := c.r.Get(ctx, url) //Запрашиваем страницу через Requester
@@ -159,6 +168,10 @@ func (c *crawler) ChanResult() <-chan CrawlResult {
 	return c.res
 }
 
+func (c *crawler) ChangeDepth(val int) {
+	c.chngDepth <- val
+}
+
 //Config - структура для конфигурации
 type Config struct {
 	MaxDepth   int
@@ -174,7 +187,7 @@ func main() {
 		MaxDepth:   3,
 		MaxResults: 10,
 		MaxErrors:  5,
-		Url:        "https://telegram.org",
+		Url:        "https://sdo.1580.ru/",
 		Timeout:    10,
 	}
 	var cr Crawler
@@ -183,9 +196,9 @@ func main() {
 	cr = NewCrawler(r)
 
 	ctx, _ := context.WithCancel(context.Background())
-	ctx, cancel := context.WithTimeout(ctx, time.Second*2) // добавим таймаут в контекст
-	go cr.Scan(ctx, cfg.Url, cfg.MaxDepth)                 //Запускаем краулер в отдельной рутине
-	go processResult(ctx, cancel, cr, cfg)                 //Обрабатываем результаты в отдельной рутине
+	ctx, cancel := context.WithTimeout(ctx, time.Second*time.Duration(cfg.Timeout)) // добавим таймаут в контекст
+	go cr.Scan(ctx, cfg.Url, cfg.MaxDepth)                                          //Запускаем краулер в отдельной рутине
+	go processResult(ctx, cancel, cr, cfg)                                          //Обрабатываем результаты в отдельной рутине
 
 	sigCh := make(chan os.Signal, 1)                      //Создаем канал для приема сигналов
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGUSR1) //Подписываемся на сигнал SIGINT
@@ -199,8 +212,7 @@ func main() {
 			case syscall.SIGINT:
 				cancel() //Если пришёл сигнал SigInt - завершаем контекст
 			case syscall.SIGUSR1:
-				cfg.MaxDepth += 2
-
+				cr.ChangeDepth(2)
 			}
 		}
 	}
