@@ -1,13 +1,25 @@
 package files_deleter
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	loggermaker "github.com/xfiendx4life/gb_gobest/hw2/logger_maker"
+	"go.uber.org/zap"
 )
+
+var (
+	logLevel = zap.LevelFlag("loglevel", zap.InfoLevel, "set logging level")
+	filelog  = flag.String("filelog", "", "choose file for logs, leave empty to use stderr")
+)
+
+func init() {
+	logger = *loggermaker.InitLogger(logLevel, *filelog)
+}
 
 func createNFiles(path string, n int) error {
 	for i := 0; i < n; i++ {
@@ -65,7 +77,7 @@ func TestTwoCopiesInDifferentFolders(t *testing.T) {
 	CreateDupl("./test/test1/file0.txt", "./test/test1/file0copy")
 	CreateDupl("./test/test1/file2.txt", "./test/test2/file2_1copy")
 	defer os.RemoveAll("./test")
-	n, err := Delete("./test", false)
+	n, err := Delete("./test", false, &logger)
 	if assert.Nil(t, err) {
 		assert.Equal(t, 2, n)
 	}
@@ -77,7 +89,7 @@ func TestTwoCopiesInsameFolder(t *testing.T) {
 	CreateDupl("./test/test1/file0.txt", "./test/test1/file0copy")
 	CreateDupl("./test/test1/file2.txt", "./test/test1/file2_1copy")
 	defer os.RemoveAll("./test")
-	n, err := Delete("./test", false)
+	n, err := Delete("./test", false, &logger)
 	if assert.Nil(t, err) {
 		assert.Equal(t, 2, n)
 	}
@@ -87,7 +99,7 @@ func TestNoCopies(t *testing.T) {
 	os.Mkdir("./test", 0777)
 	createNCatalogs("./test", 3, createNFiles, 4)
 	defer os.RemoveAll("./test")
-	n, err := Delete("./test", false)
+	n, err := Delete("./test", false, &logger)
 	if assert.Nil(t, err) {
 		assert.Equal(t, 0, n)
 	}
@@ -101,7 +113,7 @@ func TestThreeCopiesInInternalFolders(t *testing.T) {
 	CreateDupl("./test/test1/test1/file0.txt", "./test/test2/file2_1copy")
 	CreateDupl("./test/test1/test1/file1.txt", "./test/test1/test0/file3_1copy")
 	defer os.RemoveAll("./test")
-	n, err := Delete("./test", false)
+	n, err := Delete("./test", false, &logger)
 	if assert.Nil(t, err) {
 		assert.Equal(t, 3, n)
 	}
@@ -111,7 +123,7 @@ func TestEmptyFolders(t *testing.T) {
 	os.Mkdir("./test", 0777)
 	createNCatalogs("./test", 3, createNFiles, 0)
 	defer os.RemoveAll("./test")
-	n, err := Delete("./test", false)
+	n, err := Delete("./test", false, &logger)
 	if assert.Nil(t, err) {
 		assert.Equal(t, 0, n)
 	}
@@ -125,11 +137,11 @@ func TestDeleteTwoCopiesInDifferentFolders(t *testing.T) {
 	CreateDupl("./test/test1/file0.txt", "./test/test1/file0copy")
 	CreateDupl("./test/test1/file2.txt", "./test/test2/file2_1copy")
 	defer os.RemoveAll("./test")
-	n, err := Delete("./test", true)
+	n, err := Delete("./test", true, &logger)
 	if assert.Nil(t, err) {
 		assert.Equal(t, 2, n)
 	}
-	n, err = Delete("./test", false)
+	n, err = Delete("./test", false, &logger)
 	if assert.Nil(t, err) {
 		assert.Equal(t, 0, n)
 	}
@@ -141,11 +153,11 @@ func TestDeleteTwoCopiesInsameFolder(t *testing.T) {
 	CreateDupl("./test/test1/file0.txt", "./test/test1/file0copy")
 	CreateDupl("./test/test1/file2.txt", "./test/test1/file2_1copy")
 	defer os.RemoveAll("./test")
-	n, err := Delete("./test", true)
+	n, err := Delete("./test", true, &logger)
 	if assert.Nil(t, err) {
 		assert.Equal(t, 2, n)
 	}
-	n, err = Delete("./test", false)
+	n, err = Delete("./test", false, &logger)
 	if assert.Nil(t, err) {
 		assert.Equal(t, 0, n)
 	}
@@ -159,18 +171,18 @@ func TestDeleteThreeCopiesInInternalFolders(t *testing.T) {
 	CreateDupl("./test/test1/test1/file0.txt", "./test/test2/file2_1copy")
 	CreateDupl("./test/test1/test1/file1.txt", "./test/test1/test0/file3_1copy")
 	defer os.RemoveAll("./test")
-	n, err := Delete("./test", true)
+	n, err := Delete("./test", true, &logger)
 	if assert.Nil(t, err) {
 		assert.Equal(t, 3, n)
 	}
-	n, err = Delete("./test", false)
+	n, err = Delete("./test", false, &logger)
 	if assert.Nil(t, err) {
 		assert.Equal(t, 0, n)
 	}
 }
 
 func ExampleDelete() {
-	n, err := Delete("./", false)
+	n, err := Delete("./", false, &logger)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -180,6 +192,6 @@ func ExampleDelete() {
 }
 
 func TestWrongDirectory(t *testing.T) {
-	_, err := Delete("./wrongDir", false)
+	_, err := Delete("./wrongDir", false, &logger)
 	assert.NotNil(t, err)
 }

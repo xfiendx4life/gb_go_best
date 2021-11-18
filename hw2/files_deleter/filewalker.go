@@ -10,7 +10,11 @@ import (
 	"log"
 	"os"
 	"sync"
+
+	"go.uber.org/zap"
 )
+
+var logger zap.SugaredLogger
 
 // структура для хранения хешей и имен файлов. Ключ - хеш, значение - имя
 // мьютекс для асинхронной записи и чтения
@@ -55,11 +59,13 @@ func (f *FileSet) ReadData(h uint32) (filename string, ok bool) {
 func CreateHash(fileName string) (hash.Hash32, error) {
 	file, err := os.Open(fileName)
 	if err != nil {
+		logger.Errorf("can't open file %s in CreateHash func", err)
 		return nil, fmt.Errorf("can't open file %s", err)
 	}
 	defer file.Close()
 	h := crc32.NewIEEE()
 	if _, err := io.Copy(h, file); err != nil {
+		logger.Errorf("cant get hash of the file in CreateHash func -> %s", err)
 		return nil, fmt.Errorf("cant get hash of the file %s", err)
 	}
 	return h, nil
@@ -86,26 +92,25 @@ func FindDopplerOrWrite(filename string, fs *FileSet, res chan [2]string, errCha
 func walkTheDir(dirList *[]fs.DirEntry, dirPath string, resChan chan [2]string, errChan chan error, fset *FileSet) error {
 	wg := sync.WaitGroup{}
 	defer wg.Wait()
-
 	for _, file := range *dirList {
 		if !file.Type().IsDir() {
 			filename := fmt.Sprintf("%s/%s", dirPath, file.Name())
 			wg.Add(1)
+			logger.Debugf("Working on file - %s dir - %s", file.Name(), dirPath)
 			go func(filename string, fs *FileSet, wg *sync.WaitGroup) {
 				defer wg.Done()
 				FindDopplerOrWrite(filename, fs, resChan, errChan)
-
 			}(filename, fset, &wg)
 		} else {
 			intDirPath := fmt.Sprintf("%s/%s", dirPath, file.Name())
 			internalDir, err := os.ReadDir(intDirPath)
 			if err != nil {
-				log.Printf("can't read directory %s", err)
+				logger.Errorf("can't read directory in WalkTheDir func -> %s", err)
 				return err
 			}
 			err = walkTheDir(&internalDir, intDirPath, resChan, errChan, fset)
 			if err != nil {
-				log.Printf("error while reading dir %s", err)
+				logger.Errorf("error while reading dir in WalkTheDir func -> %s", err)
 				return err
 			}
 		}
@@ -113,15 +118,20 @@ func walkTheDir(dirList *[]fs.DirEntry, dirPath string, resChan chan [2]string, 
 	return nil
 }
 
-func Delete(filedir string, isDel bool) (n int, err error) {
+func Delete(filedir string, isDel bool, logg *zap.SugaredLogger) (n int, err error) {
+	logger = *logg
+	if isDel {
+		logger.Info("Deletion is on")
+	}
 	dirList, err := os.ReadDir(filedir)
 	if err != nil {
-		log.Printf("can't read directory %s", err)
+		logger.Errorf("can't read directory in Delete func -> %s", err)
 	}
 	fset := newFileSet()
 	chanBuf := len(dirList)
 	resChan := make(chan [2]string, chanBuf)
 	errChan := make(chan error, chanBuf)
+	logger.Infof("starting search in %s", filedir)
 	walkTheDir(&dirList, filedir, resChan, errChan, fset)
 	for {
 		select {
@@ -132,6 +142,7 @@ func Delete(filedir string, isDel bool) (n int, err error) {
 			if isDel {
 				err = os.Remove(names[1])
 				if err != nil {
+					logger.Errorf("can't remove directory in Delete func -> %s ", err)
 					return 0, err
 				}
 				log.Printf("Duplicate %s deleted", names[1])
