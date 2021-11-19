@@ -1,0 +1,23 @@
+{"level":"info","ts":1637306322.992288,"msg":"starting search in ."}
+{"level":"debug","ts":1637306322.992335,"msg":"Working on file - 1.txt dir - ."}
+{"level":"debug","ts":1637306322.9923935,"msg":"Working on file - filewalker.go dir - ./files_deleter"}
+{"level":"debug","ts":1637306322.992413,"msg":"Working on file - filewalker_test.go dir - ./files_deleter"}
+{"level":"debug","ts":1637306322.9926138,"msg":"Working on file - go.mod dir - ."}
+{"level":"debug","ts":1637306322.9927092,"msg":"Working on file - go.sum dir - ."}
+{"level":"debug","ts":1637306322.9927742,"msg":"Working on file - log.go dir - ./logger_maker"}
+{"level":"debug","ts":1637306322.9928534,"msg":"Working on file - main.go dir - ."}
+{"level":"debug","ts":1637306322.9928806,"msg":"Working on file - readme.md dir - ."}
+{"level":"debug","ts":1637306322.9929988,"msg":"Working on file - file0.txt dir - ./test/test0"}
+{"level":"debug","ts":1637306322.9930248,"msg":"Working on file - file1.txt dir - ./test/test0"}
+{"level":"debug","ts":1637306322.9930456,"msg":"Working on file - file2.txt dir - ./test/test0"}
+{"level":"debug","ts":1637306322.993065,"msg":"Working on file - file3.txt dir - ./test/test0"}
+{"level":"debug","ts":1637306322.9937124,"msg":"Working on file - file0.txt dir - ./test/test1"}
+{"level":"debug","ts":1637306322.993744,"msg":"Working on file - file0copy dir - ./test/test1"}
+{"level":"debug","ts":1637306322.9937654,"msg":"Working on file - file1.txt dir - ./test/test1"}
+{"level":"debug","ts":1637306322.9937856,"msg":"Working on file - file2.txt dir - ./test/test1"}
+{"level":"debug","ts":1637306322.9938056,"msg":"Working on file - file3.txt dir - ./test/test1"}
+{"level":"debug","ts":1637306322.99413,"msg":"Working on file - file0.txt dir - ./test/test2"}
+{"level":"debug","ts":1637306322.9941614,"msg":"Working on file - file1.txt dir - ./test/test2"}
+{"level":"debug","ts":1637306322.9941828,"msg":"Working on file - file2.txt dir - ./test/test2"}
+{"level":"debug","ts":1637306322.9942026,"msg":"Working on file - file2_1copy dir - ./test/test2"}
+{"level":"debug","ts":1637306322.9942226,"msg":"Working on file - file3.txt dir - ./test/test2"}
