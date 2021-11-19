@@ -1,7 +1,6 @@
 package files_deleter
 
 import (
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -14,11 +13,10 @@ import (
 
 var (
 	logLevel = zap.LevelFlag("loglevel", zap.InfoLevel, "set logging level")
-	filelog  = flag.String("filelog", "", "choose file for logs, leave empty to use stderr")
 )
 
 func init() {
-	logger = *loggermaker.InitLogger(logLevel, *filelog)
+	logger = *loggermaker.InitLogger(logLevel, os.Getenv("FILELOG"))
 }
 
 func createNFiles(path string, n int) error {

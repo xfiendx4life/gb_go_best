@@ -103,7 +103,11 @@ func walkTheDir(dirList *[]fs.DirEntry, dirPath string, resChan chan [2]string, 
 			}(filename, fset, &wg)
 		} else {
 			intDirPath := fmt.Sprintf("%s/%s", dirPath, file.Name())
+			logger.Infof("searching in %s", intDirPath)
 			internalDir, err := os.ReadDir(intDirPath)
+			if os.Getenv("PANIC") != "" { // to check logging if panics
+				panic("checking dir with panic!")
+			}
 			if err != nil {
 				logger.Errorf("can't read directory in WalkTheDir func -> %s", err)
 				return err
